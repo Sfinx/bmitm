@@ -1,0 +1,54 @@
+diff --git a/opts.c b/opts.c
+index 351f4a7..0fe8fdc 100644
+--- a/opts.c
++++ b/opts.c
+@@ -283,6 +283,10 @@ proxyspec_parse(int *argc, char **argv[], const char *natengine, proxyspec_t **o
+ 					spec->ssl = 1;
+ 					spec->http = 1;
+ 				} else
++				if (!strcmp(**argv, "bssl")) {
++					spec->ssl = 1;
++					spec->binary = 1;
++				} else
+ 				if (!strcmp(**argv, "autossl")) {
+ 					spec->upgrade = 1;
+ 				} else
+diff --git a/opts.h b/opts.h
+index 4ac2c39..5263cd8 100644
+--- a/opts.h
++++ b/opts.h
+@@ -38,6 +38,7 @@
+ #include <sys/socket.h>
+ 
+ typedef struct proxyspec {
++        unsigned int binary : 1; // arbitrary binary data
+ 	unsigned int ssl : 1;
+ 	unsigned int http : 1;
+ 	unsigned int upgrade: 1;
+diff --git a/pxyconn.c b/pxyconn.c
+index 77a1a78..d9b375e 100644
+--- a/pxyconn.c
++++ b/pxyconn.c
+@@ -2223,7 +2223,7 @@ pxy_bev_readcb(struct bufferevent *bev, void *arg)
+ 
+ 			// @attention Cannot use string manipulation functions; we are dealing with binary arrays here, not NULL-terminated strings
+ 			if (!ctx->sent_header) {
+-				if (ctx->spec->mail) {
++				if (ctx->spec->binary || ctx->spec->mail) {
+ 					memmove(packet + header_len + 2, packet, packet_size);
+ 					memcpy(packet, ctx->header_str, header_len);
+ 					memcpy(packet + header_len, "\r\n", 2);
+diff --git a/sslproxy.1 b/sslproxy.1
+index c059c5b..e532701 100644
+--- a/sslproxy.1
++++ b/sslproxy.1
+@@ -411,6 +411,9 @@ SSL/TLS interception with SMTP protocol decoding.
+ SSL/TLS interception without any lower level protocol decoding; decrypted
+ connection content is treated as opaque stream of bytes and not modified.
+ .TP
++\fBbssl\fP
++The same as \fBssl\fP but use the binary friendly backend header.
++.TP
+ \fBhttp\fP
+ Plain TCP connection without SSL/TLS, with HTTP protocol decoding, including
+ the removal of HPKP, HSTS, Upgrade and Alternate Protocol response headers.
