@@ -126,8 +126,9 @@ class mitm_conn_t {
     std::string r(buf, sz);
     if (debug)
       std::cerr << "conn N" << cid << " net: sz: " << sz << ", [" << r << "]\n";
-    if (!app_rx(cid, r) || !tcp->isConnected() || (tcp->writeData(buf, sz) != sz))
-      return false;
+    if (!app_rx(cid, r) || !tcp->isConnected() ||
+      (tcp->writeData(r.data(), r.size()) != (ssize_t)r.size()))
+        return false;
     return true;
   }
 };
