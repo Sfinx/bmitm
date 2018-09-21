@@ -1,7 +1,6 @@
 
 #pragma once
 
-#include <commoncpp/socket.h>
 #include <commoncpp/tcp.h>
 #include <thread>
 #include <chrono>
@@ -13,7 +12,6 @@
 
 typedef unsigned char uchar;
 typedef uint16_t u16;
-extern uint debug;
 
 #include <functional>
 namespace ph = std::placeholders;
@@ -64,22 +62,16 @@ class mitm_conn_t {
         std::cerr << "conn N" << cid << " app: sz: " << q.size() << ", q: " << q << std::endl;
       std::vector<std::string> ha = split(h, "[]:, \r\n");
       proxy = new ost::TCPStream(ost::InetHostAddress(ha[1].c_str()), atoi(ha[2].c_str()));
-      if (!app_tx(cid, q))
-        return false;
-      if (!proxy->isConnected())
-        return false;
-      if (proxy->writeData(q.data(), q.size(), 0) != (ssize_t)q.size())
-        return false;
+      if (!app_tx(cid, q) || !proxy->isConnected() ||
+        (proxy->writeData(q.data(), q.size(), 0) != (ssize_t)q.size()))
+          return false;
     } else if (proxy) {
         std::string q(b, sz);
         if (debug)
           std::cerr << "conn N" << cid << " app: sz: " << q.size() << std::endl;
-        if (!app_tx(cid, q))
-          return false;
-        if (!proxy->isConnected())
-          return false;
-        if (proxy->writeData(q.data(), q.size(), 0) != (ssize_t)q.size())
-          return false;
+        if (!app_tx(cid, q) || !proxy->isConnected() ||
+          (proxy->writeData(q.data(), q.size(), 0) != (ssize_t)q.size()))
+            return false;
     } else {
         std::string q(b, sz);
         std::cerr << "conn N" << cid << " : mitm_conn_t::process_app_message: unhandled message [" <<
@@ -112,9 +104,7 @@ class mitm_conn_t {
    bool mitm_run() {
      if (tcp->isPending(ost::Socket::pendingInput, PENDING_SLEEP_MS)) {
        ssize_t sz = tcp->readData(buf, sizeof(buf));
-       if (!sz) // EOF
-         return false;
-       if (!process_app_message(buf, sz))
+       if (!sz || !process_app_message(buf, sz))
          return false;
      }
      if (tcp->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
@@ -123,9 +113,7 @@ class mitm_conn_t {
      }
      if (proxy && proxy->isPending(ost::Socket::pendingInput, PENDING_SLEEP_MS)) {
        ssize_t sz = proxy->readData(buf, sizeof(buf));
-       if (!sz)
-         return false;
-       if (!process_network_message(buf, sz))
+       if (!sz || !process_network_message(buf, sz))
          return false;
      }
      if (proxy && proxy->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
@@ -138,11 +126,7 @@ class mitm_conn_t {
     std::string r(buf, sz);
     if (debug)
       std::cerr << "conn N" << cid << " net: sz: " << sz << ", [" << r << "]\n";
-    if (!app_rx(cid, r))
-      return false;
-    if (!tcp->isConnected())
-      return false;
-    if (tcp->writeData(buf, sz) != sz)
+    if (!app_rx(cid, r) || !tcp->isConnected() || (tcp->writeData(buf, sz) != sz))
       return false;
     return true;
   }
