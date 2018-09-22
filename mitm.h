@@ -125,8 +125,11 @@ class mitm_conn_t {
     } catch (...) {
         std::cerr << "mitm_run: conn N" << cid << " : general exception\n";
     }
-    app->disconnect();
-    std::cerr << "conn N" << cid << " app: disconnected\n";
+    if (net->isConnected())
+      net->disconnect();
+    if (app->isConnected())
+      app->disconnect();
+    std::cerr << "conn N" << cid << " : disconnected\n";
   }
 };
 
