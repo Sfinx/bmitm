@@ -6,24 +6,24 @@
 #include <chrono>
 #include <vector>
 #include <sstream>
+#include <functional>
+
+namespace ph = std::placeholders;
+
+typedef unsigned char uchar;
+typedef uint16_t u16;
+typedef std::function<bool(uint, std::string &d)>data_cb_t;
 
 #define MAX_MESSAGE_SIZE 	8192
 #define PENDING_SLEEP_MS	10
 
-typedef unsigned char uchar;
-typedef uint16_t u16;
-
-#include <functional>
-namespace ph = std::placeholders;
-
-typedef std::function<bool(uint, std::string &d)>data_cb_t;
-
 class mitm_conn_t {
   uint cid;
-  ost::TCPStream *tcp, *proxy;
+  ost::TCPStream *app, *net;
   char buf[MAX_MESSAGE_SIZE];
   data_cb_t app_tx, app_rx;
   uint debug;
+
   inline bool isDelim(char c, const std::string &delims) {
     for (uint i = 0; i < delims.size(); ++i) {
       if (delims[i] == c)
@@ -53,7 +53,7 @@ class mitm_conn_t {
     //             proxy reply ep         source              dst
     char *pos = (char *)memmem(b, sz, "\r\n", 2);
     const char *prefix = "SSLproxy: [";
-    if (!proxy && !strncmp(prefix, b, strlen(prefix)) && pos) {
+    if (!net && !strncmp(prefix, b, strlen(prefix)) && pos) {
       ssize_t margin = pos - b + 2;
       std::string h(b, margin - 2);
       std::string q(b + margin, sz - margin);
@@ -61,16 +61,16 @@ class mitm_conn_t {
       if (debug)
         std::cerr << "conn N" << cid << " app: sz: " << q.size() << ", q: " << q << std::endl;
       std::vector<std::string> ha = split(h, "[]:, \r\n");
-      proxy = new ost::TCPStream(ost::InetHostAddress(ha[1].c_str()), atoi(ha[2].c_str()));
-      if (!app_tx(cid, q) || !proxy->isConnected() ||
-        (proxy->writeData(q.data(), q.size(), 0) != (ssize_t)q.size()))
+      net = new ost::TCPStream(ost::InetHostAddress(ha[1].c_str()), atoi(ha[2].c_str()));
+      if (!app_tx(cid, q) || !net->isConnected() ||
+        (net->writeData(q.data(), q.size(), 0) != (ssize_t)q.size()))
           return false;
-    } else if (proxy) {
+    } else if (net) {
         std::string q(b, sz);
         if (debug)
           std::cerr << "conn N" << cid << " app: sz: " << q.size() << std::endl;
-        if (!app_tx(cid, q) || !proxy->isConnected() ||
-          (proxy->writeData(q.data(), q.size(), 0) != (ssize_t)q.size()))
+        if (!app_tx(cid, q) || !net->isConnected() ||
+          (net->writeData(q.data(), q.size(), 0) != (ssize_t)q.size()))
             return false;
     } else {
         std::string q(b, sz);
@@ -80,12 +80,43 @@ class mitm_conn_t {
     }
     return true;
   }
+  bool process_network_message(char *b, ssize_t sz) {
+    std::string r(buf, sz);
+    if (debug)
+      std::cerr << "conn N" << cid << " net: sz: " << sz << ", [" << r << "]\n";
+    if (!app_rx(cid, r) || !app->isConnected() ||
+      (app->writeData(r.data(), r.size()) != (ssize_t)r.size()))
+        return false;
+    return true;
+  }
+  // TODO: move app/net->isPending() branches to own separate threads, will improve perfomance
+  bool mitm_run() {
+    if (app->isPending(ost::Socket::pendingInput, PENDING_SLEEP_MS)) {
+      ssize_t sz = app->readData(buf, sizeof(buf));
+      if (!sz || !process_app_message(buf, sz))
+        return false;
+    }
+    if (app->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
+      std::cerr << "conn N" << cid << " : app Pending error\n";
+      return false;
+    }
+    if (net && net->isPending(ost::Socket::pendingInput, PENDING_SLEEP_MS)) {
+      ssize_t sz = net->readData(buf, sizeof(buf));
+      if (!sz || !process_network_message(buf, sz))
+        return false;
+    }
+    if (net && net->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
+      std::cerr << "conn N" << cid << " net: Pending error\n";
+      return false;
+    }
+    return true;
+ }
  public:
-   mitm_conn_t(uint cid_, ost::TCPStream *tcp_, data_cb_t app_tx_, data_cb_t app_rx_) : cid(cid_),
-     tcp(tcp_), proxy(0), app_tx(app_tx_), app_rx(app_rx_), debug(0) { }
+   mitm_conn_t(uint cid_, ost::TCPStream *app_, data_cb_t app_tx_, data_cb_t app_rx_) : cid(cid_),
+     app(app_), net(0), app_tx(app_tx_), app_rx(app_rx_), debug(0) { }
    ~mitm_conn_t() {
-     if (proxy)
-       delete proxy;
+     if (net)
+       delete net;
    }
    void run() {
      try {
@@ -98,40 +129,9 @@ class mitm_conn_t {
      } catch (...) {
          std::cerr << "mitm_run: conn N" << cid << " : general exception\n";
      }
-     tcp->disconnect();
+     app->disconnect();
      std::cerr << "conn N" << cid << " app: disconnected\n";
    }
-   // TODO: move tcp/proxy->isPending() branches to own separate threads, will improve perfomance
-   bool mitm_run() {
-     if (tcp->isPending(ost::Socket::pendingInput, PENDING_SLEEP_MS)) {
-       ssize_t sz = tcp->readData(buf, sizeof(buf));
-       if (!sz || !process_app_message(buf, sz))
-         return false;
-     }
-     if (tcp->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
-       std::cerr << "conn N" << cid << " : app Pending error\n";
-       return false;
-     }
-     if (proxy && proxy->isPending(ost::Socket::pendingInput, PENDING_SLEEP_MS)) {
-       ssize_t sz = proxy->readData(buf, sizeof(buf));
-       if (!sz || !process_network_message(buf, sz))
-         return false;
-     }
-     if (proxy && proxy->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
-       std::cerr << "conn N" << cid << " net: Pending error\n";
-       return false;
-     }
-     return true;
-  }
-  bool process_network_message(char *b, ssize_t sz) {
-    std::string r(buf, sz);
-    if (debug)
-      std::cerr << "conn N" << cid << " net: sz: " << sz << ", [" << r << "]\n";
-    if (!app_rx(cid, r) || !tcp->isConnected() ||
-      (tcp->writeData(r.data(), r.size()) != (ssize_t)r.size()))
-        return false;
-    return true;
-  }
 };
 
 class autodeleted_thread {
@@ -159,11 +159,11 @@ class mitm_t : public ost::TCPSocket, public ost::Thread {
       if (isPendingConnection()) {
         auto process_mitm = [](const int cid_, mitm_t *m) {
           // TCPStream(TCPSocket &server, bool throwflag = true, timeout_t timeout = 0);
-          ost::TCPStream *tcp = new ost::TCPStream(*m, true, PENDING_SLEEP_MS);
-          mitm_conn_t nc(cid_, tcp, std::bind(&mitm_t::app_tx_cb, m, ph::_1, ph::_2),
+          ost::TCPStream *app = new ost::TCPStream(*m, true, PENDING_SLEEP_MS);
+          mitm_conn_t mc(cid_, app, std::bind(&mitm_t::app_tx_cb, m, ph::_1, ph::_2),
             std::bind(&mitm_t::app_rx_cb, m, ph::_1, ph::_2));
-          nc.run();
-          delete tcp;
+          mc.run();
+          delete app;
         };
         autodeleted_thread sthr(std::thread(process_mitm, cid, this));
         std::cerr << "mitm: new connection N" << cid++ << "\n";
