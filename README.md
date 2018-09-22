@@ -1,11 +1,11 @@
-# MITM binary null app for SSLProxy
+# MITM binary null app for SSLproxy
 
 Using
 -----
 
 Edit the /usr/include/commoncpp/socket.h and make Socket::readData & Socket::writeData public.
 
-Compile & install SSLProxy
+Compile & install SSLproxy
 
 Create the MITM entry in sslproxy.conf:
 
@@ -15,7 +15,7 @@ Group nobody
 ProxySpec ssl 127.0.0.1 8443 up:8080
 ```
 
-Run SSLProxy
+Run SSLproxy
 
 Create some network redirect, for ex.:
 
