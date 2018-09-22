@@ -71,7 +71,7 @@ class mitm_conn_t {
     } else {
         std::string q(b, sz);
         std::cerr << "conn N" << cid << " : mitm_conn_t::process_app_message: unhandled message [" <<
-          q << "] !\r\n";
+          q << "] !" << std::endl;
         return false;
     }
     return true;
@@ -79,7 +79,7 @@ class mitm_conn_t {
   bool process_network_message(char *b, ssize_t sz) {
     std::string r(buf, sz);
     if (debug)
-      std::cerr << "conn N" << cid << " net: sz: " << sz << ", [" << r << "]\n";
+      std::cerr << "conn N" << cid << " net: sz: " << sz << ", [" << r << "]" << std::endl;
     if (!app_rx(cid, r) || !app->isConnected() ||
       (app->writeData(r.data(), r.size()) != (ssize_t)r.size()))
         return false;
@@ -87,22 +87,24 @@ class mitm_conn_t {
   }
   // TODO: move app/net->isPending() branches to own separate threads, will improve perfomance
   bool mitm_run() {
+    // app side
     if (app->isPending(ost::Socket::pendingInput, PENDING_SLEEP_MS)) {
       ssize_t sz = app->readData(buf, sizeof(buf));
       if (!sz || !process_app_message(buf, sz))
         return false;
     }
     if (app->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
-      std::cerr << "conn N" << cid << " : app Pending error\n";
+      std::cerr << "conn N" << cid << " app: Pending error" << std::endl;
       return false;
     }
+    // net side
     if (net && net->isPending(ost::Socket::pendingInput, PENDING_SLEEP_MS)) {
       ssize_t sz = net->readData(buf, sizeof(buf));
       if (!sz || !process_network_message(buf, sz))
         return false;
     }
     if (net && net->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
-      std::cerr << "conn N" << cid << " net: Pending error\n";
+      std::cerr << "conn N" << cid << " net: Pending error" << std::endl;
       return false;
     }
     return true;
@@ -123,13 +125,13 @@ class mitm_conn_t {
         std::cerr << "mitm_run: conn N" << cid << " : Socket exception: " << strerror(err) <<
           std::endl;
     } catch (...) {
-        std::cerr << "mitm_run: conn N" << cid << " : general exception\n";
+        std::cerr << "mitm_run: conn N" << cid << " : general exception" << std::endl;
     }
     if (net->isConnected())
       net->disconnect();
     if (app->isConnected())
       app->disconnect();
-    std::cerr << "conn N" << cid << " : disconnected\n";
+    std::cerr << "conn N" << cid << " : disconnected" << std::endl;
   }
 };
 
@@ -165,7 +167,7 @@ class mitm_t : public ost::TCPSocket, public ost::Thread {
           delete app;
         };
         autodeleted_thread sthr(std::thread(process_mitm, cid, this));
-        std::cerr << "mitm: new connection N" << cid++ << "\n";
+        std::cerr << "mitm: new connection N" << cid++ << std::endl;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(PENDING_SLEEP_MS));
     }
