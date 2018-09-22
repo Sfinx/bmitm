@@ -3,8 +3,6 @@
 Using
 -----
 
-Apply the patch from sslproxy.diff
-
 Edit the /usr/include/commoncpp/socket.h and make Socket::readData & Socket::writeData public.
 
 Compile & install SSLProxy
@@ -14,7 +12,7 @@ Create the MITM entry in sslproxy.conf:
 ```
 User nobody
 Group nobody
-ProxySpec bssl 127.0.0.1 8443 up:8080
+ProxySpec ssl 127.0.0.1 8443 up:8080
 ```
 
 Run SSLProxy
