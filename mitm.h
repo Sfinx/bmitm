@@ -10,20 +10,16 @@
 
 namespace ph = std::placeholders;
 
-typedef unsigned char uchar;
-typedef uint16_t u16;
 typedef std::function<bool(uint, std::string &d)>data_cb_t;
 
 #define MAX_MESSAGE_SIZE 	8192
 #define PENDING_SLEEP_MS	10
 
 class mitm_conn_t {
-  uint cid;
+  uint cid, debug;
   ost::TCPStream *app, *net;
   char buf[MAX_MESSAGE_SIZE];
   data_cb_t app_tx, app_rx;
-  uint debug;
-
   inline bool isDelim(char c, const std::string &delims) {
     for (uint i = 0; i < delims.size(); ++i) {
       if (delims[i] == c)
@@ -112,31 +108,31 @@ class mitm_conn_t {
     return true;
  }
  public:
-   mitm_conn_t(uint cid_, ost::TCPStream *app_, data_cb_t app_tx_, data_cb_t app_rx_) : cid(cid_),
-     app(app_), net(0), app_tx(app_tx_), app_rx(app_rx_), debug(0) { }
-   ~mitm_conn_t() {
-     if (net)
-       delete net;
-   }
-   void run() {
-     try {
-       while(mitm_run())
-         std::this_thread::sleep_for(std::chrono::milliseconds(PENDING_SLEEP_MS));
-     } catch (ost::Socket* s) {
-         int err = s->getErrorNumber() ? s->getErrorNumber() : s->getSystemError();
-         std::cerr << "mitm_run: conn N" << cid << " : Socket exception: " << strerror(err) <<
-           std::endl;
-     } catch (...) {
-         std::cerr << "mitm_run: conn N" << cid << " : general exception\n";
-     }
-     app->disconnect();
-     std::cerr << "conn N" << cid << " app: disconnected\n";
-   }
+  mitm_conn_t(uint cid_, ost::TCPStream *app_, data_cb_t app_tx_, data_cb_t app_rx_) : cid(cid_),
+    debug(0), app(app_), net(0), app_tx(app_tx_), app_rx(app_rx_) { }
+  ~mitm_conn_t() {
+    if (net)
+      delete net;
+  }
+  void run() {
+    try {
+      while(mitm_run())
+        std::this_thread::sleep_for(std::chrono::milliseconds(PENDING_SLEEP_MS));
+    } catch (ost::Socket* s) {
+        int err = s->getErrorNumber() ? s->getErrorNumber() : s->getSystemError();
+        std::cerr << "mitm_run: conn N" << cid << " : Socket exception: " << strerror(err) <<
+          std::endl;
+    } catch (...) {
+        std::cerr << "mitm_run: conn N" << cid << " : general exception\n";
+    }
+    app->disconnect();
+    std::cerr << "conn N" << cid << " app: disconnected\n";
+  }
 };
 
 class autodeleted_thread {
   std::thread t;
-public:
+ public:
   explicit autodeleted_thread(std::thread t_): t(std::move(t_)) {
     if (!t.joinable())
       throw std::logic_error("No thread !");
@@ -151,7 +147,7 @@ class mitm_t : public ost::TCPSocket, public ost::Thread {
   bool app_tx_cb(uint cid, std::string &d) { return app_tx(cid, d); }
   bool app_rx_cb(uint cid, std::string &d) { return app_rx(cid, d); }
  public:
-  mitm_t(u16 p, data_cb_t app_tx_, data_cb_t app_rx_) : TCPSocket(ost::IPV4Address("0.0.0.0"), p),
+  mitm_t(ost::tpport_t p, data_cb_t app_tx_, data_cb_t app_rx_) : TCPSocket(ost::IPV4Address("0.0.0.0"), p),
     app_tx(app_tx_), app_rx(app_rx_) { }
   void run() {
     static uint cid;
