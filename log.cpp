@@ -1,54 +1,15 @@
 
 #include "log.h"
 
-inline std::string time_str()
-{
- char b[64];
- struct timeval tv;
- gettimeofday(&tv, 0);
- uint milliseconds = lrint(tv.tv_usec / 1000.0);
- if (milliseconds >= 1000) {
-   milliseconds -= 1000;
-   tv.tv_sec++;
- }
- struct tm *tm = localtime(&tv.tv_sec);
- strftime(b, 64, "%a %b %d %H:%M:%S", tm);
- char m[16];
- sprintf(m, ".%03d", milliseconds);
- return std::string(b) + std::string(m);
-}
-
 bool logger::log_to_file = false;
-int logger::log_level = DEFAULT_DEBUG_LVL;
-std::string logger:: log_fname;
-
-const char *level2str(int l)
-{
- switch (l) {
-   case LOG_QUIET_LVL:
-     return "quiet";
-   case LOG_TRACE_LVL:
-     return "trace";
-   case LOG_DEBUG_LVL:
-     return "debug";
-   case LOG_INFO_LVL:
-     return "info";
-   case LOG_WARNING_LVL:
-     return "warning";
-   case LOG_ERROR_LVL:
-     return "error";
-   case LOG_FATAL_LVL:
-     return "fatal";
-   default:
-     return "unknown";
- }
-}
+log_level_t logger::log_level = DEFAULT_DEBUG_LVL;
+std::string logger::log_fname;
 
 logger::~logger()
 {
- std::lock_guard<std::mutex> guard(log_mutex);
  if (level < log_level)
    return;
+ std::lock_guard<std::mutex> guard(log_mutex);
  std::stringstream m;
  m << "[" + time_str() + "] [" << level2str(level) << "] " << buf.str();
  if (log_to_file) {
