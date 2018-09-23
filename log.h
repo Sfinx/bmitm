@@ -20,14 +20,13 @@ enum log_t {
   LOG_FATAL_LVL = 5
 };
 
-extern void set_log_level(int);
-extern bool log_to_file;
-extern std::string log_fname;
-
 class logger {
   std::ostringstream buf;
   std::mutex log_mutex;
   int level;
+  static bool log_to_file;
+  static int log_level;
+  static std::string log_fname;
  public:
   typedef std::basic_ostream<char, std::char_traits<char> > CoutType;
   typedef CoutType& (*StandardEndLine)(CoutType&);
@@ -41,6 +40,14 @@ class logger {
   }
   ~logger();
   logger(int l): level(l) { }
+  static void set_log_level(int l) { log_level = l; }
+  static void set_log_name(std::string name) {
+    log_fname = name;
+    if (name.size())
+      log_to_file = true;
+    else
+      log_to_file = false;
+  }
 };
 
 #define Log(x)	logger(x)

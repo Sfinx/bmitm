@@ -18,11 +18,9 @@ inline std::string time_str()
  return std::string(b) + std::string(m);
 }
 
-bool log_to_file = false;
-int log_level = DEFAULT_DEBUG_LVL;
-std::string log_fname;
-
-void set_log_level(int l) { log_level = l; }
+bool logger::log_to_file = false;
+int logger::log_level = DEFAULT_DEBUG_LVL;
+std::string logger:: log_fname;
 
 const char *level2str(int l)
 {

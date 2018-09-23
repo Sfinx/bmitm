@@ -21,11 +21,8 @@ int main(int argc, char **argv)
    cerr << "Usage: " << argv[0] << " <SSLproxy port> [log_fname]";
    ::exit(0);
  }
- set_log_level(LOG_DEBUG_LVL);
- if (argc > 2) {
-   log_to_file = true;
-   log_fname = argv[2];
- }
+ if (argc > 2)
+   logger::set_log_name(argv[2]);
  Log(LOG_INFO_LVL) << argv[0] << " started";
  try {
    mitm_t tl(atoi(argv[1]), app_tx_cb, app_rx_cb);
