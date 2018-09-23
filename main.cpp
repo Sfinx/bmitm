@@ -18,7 +18,7 @@ bool app_rx_cb(uint cid, string &d)
 int main(int argc, char **argv)
 {
  if (argc < 2) {
-   cerr << "Usage: " << argv[0] << " <SSLproxy port> [log_fname]";
+   clog << "Usage: " << argv[0] << " <SSLproxy port> [log_fname]";
    ::exit(0);
  }
  if (argc > 2)
@@ -31,10 +31,10 @@ int main(int argc, char **argv)
      sleep(1);
  } catch (ost::Socket* s) {
    int err = s->getErrorNumber() ? s->getErrorNumber() : s->getSystemError();
-   cerr << "main: Socket exception: " << strerror(err) << endl;
+   clog << "main: Socket exception: " << strerror(err) << endl;
    return -1;
  } catch (...) {
-   cerr << "main: general exception" << endl;
+   clog << "main: general exception" << endl;
    return -1;
  }
  return 0;
