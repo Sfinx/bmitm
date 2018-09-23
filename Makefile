@@ -8,7 +8,7 @@ LIBS			= -lucommon -lcommoncpp -lpthread
 LDFLAGS			= $(STATIC) $(DEBUG) -Wl,-O6 -Wl,--start-group $(LIBS) -Wl,--end-group
 TARGET			= bmitm
 
-OBJS = main.o
+OBJS = main.o log.o
 
 all:	do-it-all
 

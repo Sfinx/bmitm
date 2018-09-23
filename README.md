@@ -1,4 +1,4 @@
-# MITM binary null app for SSLproxy
+# MITM null app for SSLproxy. Can be used for inspecting arbitrary SSL encrypted traffic.
 
 Using
 -----

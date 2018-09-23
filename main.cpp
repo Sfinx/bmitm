@@ -5,22 +5,28 @@ using namespace std;
 
 bool app_tx_cb(uint cid, string &d)
 {
- cerr << "conn N" << cid << " app_tx: sz: " << d.size() << endl;
+ Log(LOG_INFO_LVL) << "conn N" << cid << " app_tx: sz: " << d.size();
  return true;
 }
 
 bool app_rx_cb(uint cid, string &d)
 {
- cerr << "conn N" << cid << " app_rx: sz: " << d.size() << endl;
+ Log(LOG_INFO_LVL) << "conn N" << cid << " app_rx: sz: " << d.size();
  return true;
 }
 
 int main(int argc, char **argv)
 {
  if (argc < 2) {
-   cerr << "Usage: " << argv[0] << " <SSLproxy port>" << endl;
+   cerr << "Usage: " << argv[0] << " <SSLproxy port> [log_fname]";
    ::exit(0);
  }
+ set_log_level(LOG_DEBUG_LVL);
+ if (argc > 2) {
+   log_to_file = true;
+   log_fname = argv[2];
+ }
+ Log(LOG_INFO_LVL) << argv[0] << " started";
  try {
    mitm_t tl(atoi(argv[1]), app_tx_cb, app_rx_cb);
    tl.start();
