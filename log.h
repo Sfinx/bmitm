@@ -11,23 +11,26 @@
 #include <math.h>
 
 enum log_level_t {
-  LOG_QUIET_LVL = -1,
-  LOG_TRACE_LVL = 0,
-  LOG_DEBUG_LVL = 1,
-  LOG_INFO_LVL = 2,
-  LOG_WARNING_LVL = 3,
-  LOG_ERROR_LVL = 4,
-  LOG_FATAL_LVL = 5
+  LOG_TRACE_LVL,
+  LOG_DEBUG_LVL,
+  LOG_INFO_LVL,
+  LOG_WARNING_LVL,
+  LOG_ERROR_LVL,
+  LOG_FATAL_LVL,
+  LOG_QUIET_LVL,
+  LOG_ALWAYS_LVL
 };
+
+#define DEFAULT_DEBUG_LVL       LOG_INFO_LVL
 
 class logger {
   std::ostringstream buf;
   std::mutex log_mutex;
-  log_level_t level;
+  log_level_t level; // current level
   static bool log_to_file;
-  static log_level_t log_level;
+  static log_level_t log_level_; // global level
   static std::string log_fname;
-  const char *level2str(log_level_t l) {
+  static const char *level2str(log_level_t l) {
     switch (l) {
       case LOG_QUIET_LVL:
         return "quiet";
@@ -43,6 +46,8 @@ class logger {
         return "error";
       case LOG_FATAL_LVL:
         return "fatal";
+      case LOG_ALWAYS_LVL:
+        return "always";
       default:
         return "unknown";
     }
@@ -75,7 +80,28 @@ class logger {
   }
   ~logger();
   logger(log_level_t l): level(l) { }
-  static void set_log_level(log_level_t l) { log_level = l; }
+  static const char *log_level() { return level2str(log_level_); }
+  static void set_log_level(log_level_t l) { log_level_ = l; }
+  static void set_log_level(std::string l) {
+    log_level_t ll = DEFAULT_DEBUG_LVL;
+    if (l == "quiet")
+      ll = LOG_QUIET_LVL;
+    if (l == "trace")
+      ll = LOG_TRACE_LVL;
+    if (l == "debug")
+      ll = LOG_DEBUG_LVL;
+    if (l == "info")
+      ll = LOG_INFO_LVL;
+    if (l == "warning")
+      ll = LOG_WARNING_LVL;
+    if (l == "error")
+      ll = LOG_ERROR_LVL;
+    if (l == "fatal")
+      ll = LOG_FATAL_LVL;
+    if ((l == "always") || (l == "all"))
+      ll = LOG_ALWAYS_LVL;
+    set_log_level(ll);
+  }
   static void set_log_name(std::string name) {
     log_fname = name;
     if (name.size())
@@ -86,5 +112,3 @@ class logger {
 };
 
 #define Log(x)	logger(x)
-
-#define DEFAULT_DEBUG_LVL       LOG_DEBUG_LVL

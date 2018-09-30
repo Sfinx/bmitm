@@ -2,12 +2,12 @@
 #include "log.h"
 
 bool logger::log_to_file = false;
-log_level_t logger::log_level = DEFAULT_DEBUG_LVL;
+log_level_t logger::log_level_ = DEFAULT_DEBUG_LVL;
 std::string logger::log_fname;
 
 logger::~logger()
 {
- if (level < log_level)
+ if ((log_level_ != LOG_ALWAYS_LVL) && (level < log_level_))
    return;
  std::lock_guard<std::mutex> guard(log_mutex);
  std::stringstream m;
