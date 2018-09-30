@@ -17,7 +17,7 @@ bool app_rx_cb(uint cid, string &d)
 
 void app_conn_cb(uint cid, uint ev)
 {
- Log(LOG_INFO_LVL) << "conn N" << cid << " app_conn: ev: " << ev;
+ Log(LOG_INFO_LVL) << "conn N" << cid << " app_conn: ev: " << mitm_t::ev2str(ev);
 }
 
 int main(int argc, char **argv)

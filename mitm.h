@@ -64,9 +64,9 @@ class mitm_conn_t {
       ssize_t margin = pos - b + 2;
       std::string h(b, margin - 2);
       std::string q(b + margin, sz - margin);
-      Log(LOG_INFO_LVL) << "conn N" << cid << " app: h: " << h;
+      Log(LOG_DEBUG_LVL) << "conn N" << cid << " app: h: " << h;
       if (debug)
-        Log(LOG_INFO_LVL) << "conn N" << cid << " app: sz: " << q.size() << ", q: " << q;
+        Log(LOG_DEBUG_LVL) << "conn N" << cid << " app: sz: " << q.size() << ", q: " << q;
       std::vector<std::string> ha = split(h, "[]:, \r\n");
       net = new ost::TCPStream(ost::InetHostAddress(ha[1].c_str()), atoi(ha[2].c_str()));
       if (!app_tx(cid, q) || !net->isConnected() ||
@@ -75,13 +75,13 @@ class mitm_conn_t {
     } else if (net) {
         std::string q(b, sz);
         if (debug)
-          Log(LOG_INFO_LVL) << "conn N" << cid << " app: sz: " << q.size();
+          Log(LOG_DEBUG_LVL) << "conn N" << cid << " app: sz: " << q.size();
         if (!app_tx(cid, q) || !net->isConnected() ||
           (net->writeData(q.data(), q.size(), 0) != (ssize_t)q.size()))
             return false;
     } else {
         std::string q(b, sz);
-        Log(LOG_INFO_LVL) << "conn N" << cid << " : mitm_conn_t::process_app_message: unhandled message [" <<
+        Log(LOG_WARNING_LVL) << "conn N" << cid << " : mitm_conn_t::process_app_message: unhandled message [" <<
           q << "] !";
         app_conn(cid, APP_ERROR);
         return false;
@@ -91,7 +91,7 @@ class mitm_conn_t {
   bool process_network_message(char *b, ssize_t sz) {
     std::string r(buf, sz);
     if (debug)
-      Log(LOG_INFO_LVL) << "conn N" << cid << " net: sz: " << sz << ", [" << r << "]";
+      Log(LOG_DEBUG_LVL) << "conn N" << cid << " net: sz: " << sz << ", [" << r << "]";
     if (!app_rx(cid, r) || !app->isConnected() ||
       (app->writeData(r.data(), r.size()) != (ssize_t)r.size()))
         return false;
@@ -106,7 +106,7 @@ class mitm_conn_t {
         return false;
     }
     if (app->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
-      Log(LOG_INFO_LVL) << "conn N" << cid << " app: Pending error";
+      Log(LOG_WARNING_LVL) << "conn N" << cid << " app: Pending error";
       app_conn(cid, APP_ERROR);
       return false;
     }
@@ -118,7 +118,7 @@ class mitm_conn_t {
     }
     if (net && net->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
       app_conn(cid, NET_ERROR);
-      Log(LOG_INFO_LVL) << "conn N" << cid << " net: Pending error";
+      Log(LOG_WARNING_LVL) << "conn N" << cid << " net: Pending error";
       return false;
     }
     return true;
@@ -138,17 +138,17 @@ class mitm_conn_t {
     } catch (ost::Socket* s) {
         int err = s->getErrorNumber() ? s->getErrorNumber() : s->getSystemError();
         app_conn(cid, OTHER_ERROR);
-        Log(LOG_INFO_LVL) << "mitm_run: conn N" << cid << " : Socket exception: " << strerror(err);
+        Log(LOG_WARNING_LVL) << "mitm_run: conn N" << cid << " : Socket exception: " << strerror(err);
     } catch (...) {
         app_conn(cid, OTHER_ERROR);
-        Log(LOG_INFO_LVL) << "mitm_run: conn N" << cid << " : general exception";
+        Log(LOG_WARNING_LVL) << "mitm_run: conn N" << cid << " : general exception";
     }
     if (net->isConnected())
       net->disconnect();
     if (app->isConnected())
       app->disconnect();
     app_conn(cid, APP_DISCONNECTED);
-    Log(LOG_INFO_LVL) << "conn N" << cid << " : disconnected";
+    Log(LOG_DEBUG_LVL) << "conn N" << cid << " disconnected";
   }
 };
 
@@ -171,6 +171,23 @@ class mitm_t : public ost::TCPSocket, public ost::Thread {
   bool app_rx_cb(uint cid, std::string &d) { return app_rx(cid, d); }
   void app_conn_cb(uint cid, uint ev) { app_conn(cid, ev); }
  public:
+  static const char *ev2str(int ev) {
+    switch (ev) {
+      case APP_CONNECTED:
+        return "app connected";
+      case APP_DISCONNECTED:
+        return "app disconnected";
+      case APP_ERROR:
+        return "app error";
+      case NET_ERROR:
+        return "net error";
+      case OTHER_ERROR:
+        return "other error";
+      default:
+        break;
+    }
+    return "unknown";
+  }
   mitm_t(ost::tpport_t p, data_cb_t app_tx_, data_cb_t app_rx_, conn_cb_t app_conn_) :
     TCPSocket(ost::IPV4Address("0.0.0.0"), p), app_tx(app_tx_), app_rx(app_rx_), app_conn(app_conn_) { }
   void run() {
@@ -187,7 +204,7 @@ class mitm_t : public ost::TCPSocket, public ost::Thread {
           delete app;
         };
         autodeleted_thread sthr(std::thread(process_mitm, cid, this));
-        Log(LOG_INFO_LVL) << "mitm: new connection N" << cid++;
+        Log(LOG_DEBUG_LVL) << "mitm: new connection N" << cid++;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(PENDING_SLEEP_MS));
     }
