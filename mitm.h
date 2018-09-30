@@ -12,15 +12,25 @@
 namespace ph = std::placeholders;
 
 typedef std::function<bool(uint, std::string &d)>data_cb_t;
+typedef std::function<void(uint, uint)>conn_cb_t;
 
 #define MAX_MESSAGE_SIZE 	8192
 #define PENDING_SLEEP_MS	10
+
+enum {
+  APP_CONNECTED,
+  APP_DISCONNECTED,
+  APP_ERROR,
+  NET_ERROR,
+  OTHER_ERROR
+};
 
 class mitm_conn_t {
   uint cid, debug;
   ost::TCPStream *app, *net;
   char buf[MAX_MESSAGE_SIZE];
   data_cb_t app_tx, app_rx;
+  conn_cb_t app_conn;
   inline bool isDelim(char c, const std::string &delims) {
     for (uint i = 0; i < delims.size(); ++i) {
       if (delims[i] == c)
@@ -73,6 +83,7 @@ class mitm_conn_t {
         std::string q(b, sz);
         Log(LOG_INFO_LVL) << "conn N" << cid << " : mitm_conn_t::process_app_message: unhandled message [" <<
           q << "] !";
+        app_conn(cid, APP_ERROR);
         return false;
     }
     return true;
@@ -96,6 +107,7 @@ class mitm_conn_t {
     }
     if (app->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
       Log(LOG_INFO_LVL) << "conn N" << cid << " app: Pending error";
+      app_conn(cid, APP_ERROR);
       return false;
     }
     // net side
@@ -105,32 +117,37 @@ class mitm_conn_t {
         return false;
     }
     if (net && net->isPending(ost::Socket::pendingError, PENDING_SLEEP_MS)) {
+      app_conn(cid, NET_ERROR);
       Log(LOG_INFO_LVL) << "conn N" << cid << " net: Pending error";
       return false;
     }
     return true;
  }
  public:
-  mitm_conn_t(uint cid_, ost::TCPStream *app_, data_cb_t app_tx_, data_cb_t app_rx_) : cid(cid_),
-    debug(0), app(app_), net(0), app_tx(app_tx_), app_rx(app_rx_) { }
+  mitm_conn_t(uint cid_, ost::TCPStream *app_, data_cb_t app_tx_, data_cb_t app_rx_, conn_cb_t app_conn_) :
+    cid(cid_), debug(0), app(app_), net(0), app_tx(app_tx_), app_rx(app_rx_), app_conn(app_conn_) { }
   ~mitm_conn_t() {
     if (net)
       delete net;
   }
   void run() {
     try {
+      app_conn(cid, APP_CONNECTED);
       while(mitm_run())
         std::this_thread::sleep_for(std::chrono::milliseconds(PENDING_SLEEP_MS));
     } catch (ost::Socket* s) {
         int err = s->getErrorNumber() ? s->getErrorNumber() : s->getSystemError();
+        app_conn(cid, OTHER_ERROR);
         Log(LOG_INFO_LVL) << "mitm_run: conn N" << cid << " : Socket exception: " << strerror(err);
     } catch (...) {
+        app_conn(cid, OTHER_ERROR);
         Log(LOG_INFO_LVL) << "mitm_run: conn N" << cid << " : general exception";
     }
     if (net->isConnected())
       net->disconnect();
     if (app->isConnected())
       app->disconnect();
+    app_conn(cid, APP_DISCONNECTED);
     Log(LOG_INFO_LVL) << "conn N" << cid << " : disconnected";
   }
 };
@@ -149,11 +166,13 @@ class autodeleted_thread {
 
 class mitm_t : public ost::TCPSocket, public ost::Thread {
   data_cb_t app_tx, app_rx;
+  conn_cb_t app_conn;
   bool app_tx_cb(uint cid, std::string &d) { return app_tx(cid, d); }
   bool app_rx_cb(uint cid, std::string &d) { return app_rx(cid, d); }
+  void app_conn_cb(uint cid, uint ev) { app_conn(cid, ev); }
  public:
-  mitm_t(ost::tpport_t p, data_cb_t app_tx_, data_cb_t app_rx_) : TCPSocket(ost::IPV4Address("0.0.0.0"), p),
-    app_tx(app_tx_), app_rx(app_rx_) { }
+  mitm_t(ost::tpport_t p, data_cb_t app_tx_, data_cb_t app_rx_, conn_cb_t app_conn_) :
+    TCPSocket(ost::IPV4Address("0.0.0.0"), p), app_tx(app_tx_), app_rx(app_rx_), app_conn(app_conn_) { }
   void run() {
     static uint cid;
     while(1) {
@@ -162,7 +181,8 @@ class mitm_t : public ost::TCPSocket, public ost::Thread {
           // TCPStream(TCPSocket &server, bool throwflag = true, timeout_t timeout = 0);
           ost::TCPStream *app = new ost::TCPStream(*m, true, PENDING_SLEEP_MS);
           mitm_conn_t mc(cid_, app, std::bind(&mitm_t::app_tx_cb, m, ph::_1, ph::_2),
-            std::bind(&mitm_t::app_rx_cb, m, ph::_1, ph::_2));
+            std::bind(&mitm_t::app_rx_cb, m, ph::_1, ph::_2),
+            std::bind(&mitm_t::app_conn_cb, m, ph::_1, ph::_2));
           mc.run();
           delete app;
         };

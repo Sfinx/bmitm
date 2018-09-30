@@ -15,6 +15,11 @@ bool app_rx_cb(uint cid, string &d)
  return true;
 }
 
+void app_conn_cb(uint cid, uint ev)
+{
+ Log(LOG_INFO_LVL) << "conn N" << cid << " app_conn: ev: " << ev;
+}
+
 int main(int argc, char **argv)
 {
  if (argc < 2) {
@@ -25,7 +30,7 @@ int main(int argc, char **argv)
    logger::set_log_name(argv[2]);
  Log(LOG_INFO_LVL) << argv[0] << " started";
  try {
-   mitm_t tl(atoi(argv[1]), app_tx_cb, app_rx_cb);
+   mitm_t tl(atoi(argv[1]), app_tx_cb, app_rx_cb, app_conn_cb);
    tl.start();
    while(1)
      sleep(1);
