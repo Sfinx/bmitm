@@ -4,6 +4,7 @@
 bool logger::log_to_file = false;
 log_level_t logger::log_level_ = DEFAULT_DEBUG_LVL;
 std::string logger::log_fname;
+static std::mutex log_mutex;
 
 logger::~logger()
 {

@@ -25,7 +25,6 @@ enum log_level_t {
 
 class logger {
   std::ostringstream buf;
-  std::mutex log_mutex;
   log_level_t level; // current level
   static bool log_to_file;
   static log_level_t log_level_; // global level
